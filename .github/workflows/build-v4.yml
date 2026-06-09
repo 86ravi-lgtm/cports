@@ -1,0 +1,101 @@
+name: Build Chimera v4 Overlay
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * 0' 
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout cports
+        uses: actions/checkout@v4
+
+      - name: Persistent Compiler Cache
+        uses: actions/cache@v3
+        with:
+          path: bldroot/ccache
+          key: chimera-ccache-${{ github.run_id }}
+          restore-keys: |
+            chimera-ccache-
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 bubblewrap bmake openssl git curl
+
+      - name: Setup Chimera cbuild
+        run: ./cbuild setup
+
+      - name: Import Signing Key
+        run: |
+          mkdir -p etc/keys
+          echo "${{ secrets.SIGNING_KEY }}" > etc/keys/repo.rsa
+
+      - name: Configure Kernel (BORE, ThinLTO, HZ=1000)
+        run: |
+          mkdir -p main/linux/patches
+          curl -sSL "https://raw.githubusercontent.com/CachyOS/kernel-patches/13f03b572233c4cf7e7be2413e0c0cc7f4575e92/6.12/sched/0001-bore-cachy.patch" > main/linux/patches/0001-bore.patch
+          
+          cat << 'EOF' > main/linux/files/custom-overlay.config
+          CONFIG_SCHED_BORE=y
+          CONFIG_HZ_1000=y
+          # CONFIG_HZ_300 is not set
+          # CONFIG_HZ_250 is not set
+          CONFIG_LTO_CLANG_THIN=y
+          CONFIG_PREEMPT_DYNAMIC=y
+          EOF
+          
+          cat main/linux/files/custom-overlay.config >> main/linux/files/x86_64-dotconfig
+          
+      - name: Configure Architecture Flags
+        run: |
+          mkdir -p etc
+          cat << 'EOF' > etc/config.ini
+          [build]
+          cflags = "-O2 -march=x86-64-v4 -pipe"
+          cxxflags = "-O2 -march=x86-64-v4 -pipe"
+          signing_key = "etc/keys/repo.rsa"
+          EOF
+          
+      - name: Build Overlay Packages
+        run: |
+          ./cbuild pkg main/openssl
+          ./cbuild pkg main/zstd
+          ./cbuild pkg main/mesa
+          ./cbuild pkg main/ffmpeg
+          ./cbuild pkg main/linux
+          
+      - name: Generate Signed APK Repository Index
+        run: |
+          curl -sSL "https://github.com/alpinelinux/apk-tools/releases/latest/download/apk-tools-x86_64-linux" -o apk
+          chmod +x apk
+          
+          APK_FILES=$(find packages -name '*.apk')
+          ./apk index --sign-key etc/keys/repo.rsa -o packages/APKINDEX.tar.gz $APK_FILES
+
+      - name: Failure Recovery Backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: chimera-overlay-packages
+          path: packages/
+          
+      - name: Checkout Hosting Repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/chimera-v4-repo
+          token: ${{ secrets.REPO_PAT }}
+          path: chimera-v4-repo
+          
+      - name: Deploy Overlay
+        run: |
+          cp -r packages/* chimera-v4-repo/
+          cd chimera-v4-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan gh-pages
+          git add .
+          git commit -m "10/10 Overlay Build: Kernel (BORE/ThinLTO), Mesa, FFmpeg, Zstd, OpenSSL (x86-64-v4)"
+          git push -f origin gh-pages
