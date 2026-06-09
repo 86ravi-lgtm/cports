@@ -31,13 +31,23 @@ jobs:
           sudo chmod +x apk
           sudo mv apk /usr/local/bin/apk
 
-      - name: Setup Chimera cbuild
-        run: ./cbuild setup
-
       - name: Import Signing Key
         run: |
           mkdir -p etc/keys
           echo "${{ secrets.SIGNING_KEY }}" > etc/keys/repo.rsa
+
+      - name: Configure Architecture Flags
+        run: |
+          mkdir -p etc
+          cat << 'EOF' > etc/config.ini
+          [build]
+          cflags = "-O2 -march=x86-64-v4 -pipe"
+          cxxflags = "-O2 -march=x86-64-v4 -pipe"
+          signing_key = "etc/keys/repo.rsa"
+          EOF
+
+      - name: Setup Chimera cbuild
+        run: ./cbuild setup
 
       - name: Configure Kernel (BORE, ThinLTO, HZ=1000)
         run: |
@@ -54,16 +64,6 @@ jobs:
           EOF
           
           cat main/linux/files/custom-overlay.config >> main/linux/files/x86_64-dotconfig
-          
-      - name: Configure Architecture Flags
-        run: |
-          mkdir -p etc
-          cat << 'EOF' > etc/config.ini
-          [build]
-          cflags = "-O2 -march=x86-64-v4 -pipe"
-          cxxflags = "-O2 -march=x86-64-v4 -pipe"
-          signing_key = "etc/keys/repo.rsa"
-          EOF
           
       - name: Build Overlay Packages
         run: |
