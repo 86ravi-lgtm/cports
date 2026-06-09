@@ -58,7 +58,7 @@ jobs:
       - name: Configure Kernel (BORE, ThinLTO, HZ=1000)
         run: |
           mkdir -p main/linux-stable/patches
-          curl -sSL "https://raw.githubusercontent.com/CachyOS/kernel-patches/master/7.0/sched/0001-bore-cachy.patch" > main/linux-stable/patches/0001-bore.patch
+          curl -sSL "https://raw.githubusercontent.com/CachyOS/kernel-patches/master/7.0/sched/0001-bore.patch" > main/linux-stable/patches/0001-bore.patch
           
           cat << 'EOF' > main/linux-stable/files/custom-overlay.config
           CONFIG_SCHED_BORE=y
