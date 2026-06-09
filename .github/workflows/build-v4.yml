@@ -25,6 +25,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y python3 bubblewrap bmake openssl git curl
+          curl -sSL "https://github.com/alpinelinux/apk-tools/releases/latest/download/apk-tools-x86_64-linux" -o apk
+          chmod +x apk
+          sudo mv apk /usr/local/bin/apk
 
       - name: Setup Chimera cbuild
         run: ./cbuild setup
@@ -70,11 +73,8 @@ jobs:
           
       - name: Generate Signed APK Repository Index
         run: |
-          curl -sSL "https://github.com/alpinelinux/apk-tools/releases/latest/download/apk-tools-x86_64-linux" -o apk
-          chmod +x apk
-          
           APK_FILES=$(find packages -name '*.apk')
-          ./apk index --sign-key etc/keys/repo.rsa -o packages/APKINDEX.tar.gz $APK_FILES
+          apk index --sign-key etc/keys/repo.rsa -o packages/APKINDEX.tar.gz $APK_FILES
 
       - name: Failure Recovery Backup
         uses: actions/upload-artifact@v4
