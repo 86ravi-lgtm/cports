@@ -49,7 +49,7 @@ jobs:
           EOF
 
       - name: Setup Chimera cbuild
-        run: ./cbuild setup
+        run: ./cbuild bootstrap
 
       - name: Configure Kernel (BORE, ThinLTO, HZ=1000)
         run: |
