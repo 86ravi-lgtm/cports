@@ -38,6 +38,7 @@ jobs:
         run: |
           mkdir -p etc/keys
           echo "${{ secrets.SIGNING_KEY }}" > etc/keys/repo.rsa
+          openssl rsa -in etc/keys/repo.rsa -pubout -out etc/keys/repo.rsa.pub
 
       - name: Configure Architecture Flags
         run: |
