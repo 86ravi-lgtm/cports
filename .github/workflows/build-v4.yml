@@ -43,7 +43,9 @@ jobs:
           [build]
           cflags = "-O2 -march=x86-64-v4 -pipe"
           cxxflags = "-O2 -march=x86-64-v4 -pipe"
-          signing_key = "etc/keys/repo.rsa"
+          
+          [signing]
+          key = etc/keys/repo.rsa
           EOF
 
       - name: Setup Chimera cbuild
