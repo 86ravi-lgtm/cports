@@ -13,6 +13,11 @@ jobs:
       - name: Checkout cports
         uses: actions/checkout@v4
 
+      - name: Free GitHub Actions Disk Space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo apt-get clean
+          
       - name: Persistent Compiler Cache
         uses: actions/cache@v3
         with:
@@ -55,18 +60,12 @@ jobs:
       - name: Setup Chimera cbuild
         run: ./cbuild bootstrap
 
-      - name: Configure Kernel (BORE, ThinLTO, HZ=1000)
+      - name: Hack cbuild patch engine for fuzzy patching
         run: |
-          mkdir -p main/linux-stable/files
-          curl -sSL "https://raw.githubusercontent.com/CachyOS/kernel-patches/master/7.0/sched/0001-bore.patch" > main/linux-stable/files/bore.patch
-          
-          cat << 'EOF' >> main/linux-stable/template
-          
-          def post_patch(self):
-              import subprocess
-              self.log("Applying BORE patch with fuzz...")
-              subprocess.run(["patch", "-p1", "-F", "3", "-i", str(self.files_path / "bore.patch")], cwd=self.cwd, check=True)
-          EOF
+          mkdir -p main/linux-stable/patches
+          curl -sSL "https://raw.githubusercontent.com/CachyOS/kernel-patches/master/7.0/sched/0001-bore.patch" > main/linux-stable/patches/0001-bore.patch
+          sed -i '1s/^/import subprocess\n/' src/cbuild/util/patch.py
+          sed -i 's/git.call(\[\*srcmd, p\], cwd=pkg.srcdir, foreground=True)/subprocess.call(\["patch", "-p1", "-F", "3", "-i", str(p)\], cwd=pkg.srcdir) == 0/g' src/cbuild/util/patch.py
           
           cat << 'EOF' > main/linux-stable/files/custom-overlay.config
           CONFIG_SCHED_BORE=y
