@@ -25,8 +25,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y python3 bubblewrap bmake openssl git curl
-          curl -sSL "https://github.com/alpinelinux/apk-tools/releases/latest/download/apk-tools-x86_64-linux" -o apk
-          chmod +x apk
+          # Safely extract a 100% reliable static apk binary using the official Alpine Docker image
+          docker run --rm -v $(pwd):/out alpine:latest sh -c "apk add --no-cache apk-tools-static && cp /sbin/apk.static /out/apk"
+          sudo chown $(whoami) apk
+          sudo chmod +x apk
           sudo mv apk /usr/local/bin/apk
 
       - name: Setup Chimera cbuild
