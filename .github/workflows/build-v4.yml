@@ -56,10 +56,10 @@ jobs:
 
       - name: Configure Kernel (BORE, ThinLTO, HZ=1000)
         run: |
-          mkdir -p main/linux/patches
-          curl -sSL "https://raw.githubusercontent.com/CachyOS/kernel-patches/master/6.12/sched/0001-bore-cachy.patch" > main/linux/patches/0001-bore.patch
+          mkdir -p main/linux-stable/patches
+          curl -sSL "https://raw.githubusercontent.com/CachyOS/kernel-patches/master/6.12/sched/0001-bore-cachy.patch" > main/linux-stable/patches/0001-bore.patch
           
-          cat << 'EOF' > main/linux/files/custom-overlay.config
+          cat << 'EOF' > main/linux-stable/files/custom-overlay.config
           CONFIG_SCHED_BORE=y
           CONFIG_HZ_1000=y
           # CONFIG_HZ_300 is not set
@@ -68,20 +68,16 @@ jobs:
           CONFIG_PREEMPT_DYNAMIC=y
           EOF
           
-          cat main/linux/files/custom-overlay.config >> main/linux/files/x86_64-dotconfig
+          cat main/linux-stable/files/custom-overlay.config >> main/linux-stable/files/config-x86_64.generic
           
       - name: Build Overlay Packages
         run: |
-          ./cbuild pkg main/openssl
+          ./cbuild pkg main/openssl3
           ./cbuild pkg main/zstd
           ./cbuild pkg main/mesa
           ./cbuild pkg main/ffmpeg
-          ./cbuild pkg main/linux
+          ./cbuild pkg main/linux-stable
           
-      - name: Generate Signed APK Repository Index
-        run: |
-          APK_FILES=$(find packages -name '*.apk')
-          apk index --sign-key etc/keys/repo.rsa -o packages/APKINDEX.tar.gz $APK_FILES
 
       - name: Failure Recovery Backup
         uses: actions/upload-artifact@v4
