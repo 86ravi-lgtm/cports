@@ -24,7 +24,7 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3 bubblewrap bmake openssl git curl
+          sudo apt-get install -y python3 bubblewrap bmake openssl git curl flake8
           # Disable Ubuntu 24.04 AppArmor restrictions so Bubblewrap can create namespaces
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_unconfined=0
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
