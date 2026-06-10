@@ -102,31 +102,31 @@ jobs:
 
           # Patch cbuild's patch engine for fuzzy (-F 3) patching
           python3 << 'PY'
-import sys
-import re
-
-path = "src/cbuild/util/patch.py"
-with open(path) as f:
-    content = f.read()
-
-if "import subprocess" not in content.split('\n')[0]:
-    content = "import subprocess\n" + content
-
-pattern = r'git\.call\(\s*\[\s*\*srcmd\s*,\s*p\s*\]\s*,\s*cwd\s*=\s*pkg\.srcdir\s*,\s*foreground\s*=\s*True\s*\)'
-replacement = 'subprocess.run(["patch", "-p1", "-F", "3", "-i", str(p)], cwd=pkg.srcdir, check=True)'
-
-if re.search(pattern, content):
-    content = re.sub(pattern, replacement, content)
-    with open(path, 'w') as f:
-        f.write(content)
-    print("Patched patch.py successfully")
-else:
-    if 'subprocess.run(["patch"' in content:
-        print("patch.py already patched")
-    else:
-        print("ERROR: Could not find git.call pattern to patch")
-        sys.exit(1)
-PY
+          import sys
+          import re
+          
+          path = "src/cbuild/util/patch.py"
+          with open(path) as f:
+              content = f.read()
+          
+          if "import subprocess" not in content.split('\n')[0]:
+              content = "import subprocess\n" + content
+          
+          pattern = r'git\.call\(\s*\[\s*\*srcmd\s*,\s*p\s*\]\s*,\s*cwd\s*=\s*pkg\.srcdir\s*,\s*foreground\s*=\s*True\s*\)'
+          replacement = 'subprocess.run(["patch", "-p1", "-F", "3", "-i", str(p)], cwd=pkg.srcdir, check=True)'
+          
+          if re.search(pattern, content):
+              content = re.sub(pattern, replacement, content)
+              with open(path, 'w') as f:
+                  f.write(content)
+              print("Patched patch.py successfully")
+          else:
+              if 'subprocess.run(["patch"' in content:
+                  print("patch.py already patched")
+              else:
+                  print("ERROR: Could not find git.call pattern to patch")
+                  sys.exit(1)
+          PY
 
           cat << 'EOF' > main/linux-stable/files/custom-overlay.config
           CONFIG_SCHED_BORE=y
