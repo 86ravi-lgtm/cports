@@ -30,7 +30,7 @@ jobs:
       - name: Persistent Compiler Cache Restore
         uses: actions/cache/restore@v4
         with:
-          path: bldroot/ccache
+          path: cbuild_cache/ccache
           key: chimera-ccache-${{ runner.os }}-v2
           restore-keys: |
             chimera-ccache-${{ runner.os }}-
@@ -65,7 +65,7 @@ jobs:
           cxxflags = "-O2 -march=x86-64-v4 -pipe"
           ldflags = "-fuse-ld=mold"
           jobs = 1
-          ccache = true
+          ccache = yes
 
           [signing]
           key = ${RUNNER_TEMP}/keys/repo.rsa
@@ -74,9 +74,6 @@ jobs:
       - name: Setup Chimera cbuild
         run: |
           set -euo pipefail
-          export CCACHE_DIR="$PWD/bldroot/ccache"
-          export CCACHE_MAXSIZE=5G
-          export CCACHE_COMPRESS=1
           ./cbuild bootstrap
 
       - name: Apply Kernel Config Overlay
@@ -154,18 +151,15 @@ jobs:
         run: |
           set -euo pipefail
           python3 << 'PY'
-          import re
           path = "main/mesa/template.py"
           with open(path) as f:
               content = f.read()
 
-          banned = ["amd", "nouveau", "radeonsi", "r300", "r600", "freedreno", "panfrost", "v3d", "vc4", "etnaviv", "tegra", "lima", "broadcom", "imagination-experimental"]
-
-          for b in banned:
-              # Remove "driver",
-              content = re.sub(r'["\']' + b + r'["\']\s*,\s*', '', content)
-              # Remove , "driver"
-              content = re.sub(r'\s*,\s*["\']' + b + r'["\']', '', content)
+          content = content.replace("_have_nvidia = True", "_have_nvidia = False")
+          content = content.replace("_have_amd = True", "_have_amd = False")
+          content = content.replace("_have_vmware = True", "_have_vmware = False")
+          content = content.replace("_have_virgl = True", "_have_virgl = False")
+          content = content.replace("_have_opencl = _have_amd or _have_intel", "_have_opencl = False")
 
           with open(path, 'w') as f:
               f.write(content)
@@ -193,7 +187,7 @@ jobs:
         if: always()
         uses: actions/cache/save@v4
         with:
-          path: bldroot/ccache
+          path: cbuild_cache/ccache
           key: chimera-ccache-${{ runner.os }}-v2
 
       - name: Upload Build Artifacts
@@ -203,18 +197,6 @@ jobs:
           name: chimera-overlay-packages
           path: packages/
           if-no-files-found: warn
-
-      - name: Generate APKINDEX
-        run: |
-          set -euo pipefail
-          APK_FILES=$(find packages -name '*.apk')
-          if [ -n "$APK_FILES" ]; then
-            # Chimera apk automatically signs the index if passing an existing key in config!
-            apk index -o packages/APKINDEX.tar.gz $APK_FILES
-            echo "APKINDEX generated"
-          else
-            echo "No packages to index"
-          fi
 
       - name: Checkout Hosting Repository
         uses: actions/checkout@v4
@@ -226,7 +208,7 @@ jobs:
       - name: Deploy Overlay
         run: |
           set -euo pipefail
-          if compgen -G "packages/*" > /dev/null; then
+          if find packages -name '*.apk' -print -quit | grep -q .; then
             echo "Packages found, deploying..."
           else
             echo "No packages produced."
