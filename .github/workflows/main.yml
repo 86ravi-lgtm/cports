@@ -169,6 +169,9 @@ jobs:
           with open(path, 'w') as f:
               f.write(content)
           PY
+          
+          # Fix formatting so cbuild doesn't reject our modified template
+          black main/mesa/template.py
 
       - name: Build Overlay Packages
         run: |
