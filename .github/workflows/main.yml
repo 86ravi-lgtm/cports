@@ -66,6 +66,7 @@ jobs:
           ldflags = "-fuse-ld=mold"
           jobs = 1
           ccache = yes
+          check = no
 
           [signing]
           key = ${RUNNER_TEMP}/keys/repo.rsa
@@ -160,6 +161,7 @@ jobs:
           content = content.replace("_have_vmware = True", "_have_vmware = False")
           content = content.replace("_have_virgl = True", "_have_virgl = False")
           content = content.replace("_have_opencl = _have_amd or _have_intel", "_have_opencl = False")
+          content = content.replace("_have_hwdec = True", "_have_hwdec = False")
 
           # Add missing compiler requirements for intel_clc
           content += "\nmakedepends += [\"libclc\", \"spirv-llvm-translator-devel\", \"spirv-tools-devel\"]\n"
