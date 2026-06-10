@@ -64,6 +64,7 @@ jobs:
           cflags = "-O2 -march=x86-64-v4 -pipe"
           cxxflags = "-O2 -march=x86-64-v4 -pipe"
           ldflags = "-fuse-ld=mold"
+          jobs = 1
 
           [signing]
           key = ${RUNNER_TEMP}/keys/repo.rsa
@@ -135,6 +136,10 @@ jobs:
           # CONFIG_HZ_250 is not set
           CONFIG_LTO_CLANG_THIN=y
           CONFIG_PREEMPT_DYNAMIC=y
+          # Strip massive GPU drivers to save memory/compile-time
+          # CONFIG_DRM_AMDGPU is not set
+          # CONFIG_DRM_RADEON is not set
+          # CONFIG_DRM_NOUVEAU is not set
           EOF
 
           if [[ ! -f "main/linux-stable/patches/0001-bore.patch" ]]; then
@@ -143,6 +148,27 @@ jobs:
 
           grep -q CONFIG_PREEMPT_DYNAMIC main/linux-stable/files/config-x86_64.generic || \
             cat main/linux-stable/files/custom-overlay.config >> main/linux-stable/files/config-x86_64.generic
+
+      - name: Strip AMD and Nvidia from Mesa
+        run: |
+          set -euo pipefail
+          python3 << 'PY'
+          import re
+          path = "main/mesa/template.py"
+          with open(path) as f:
+              content = f.read()
+
+          banned = ["amd", "nouveau", "radeonsi", "r300", "r600", "freedreno", "panfrost", "v3d", "vc4", "etnaviv", "tegra", "lima", "broadcom", "imagination-experimental"]
+
+          for b in banned:
+              # Remove "driver",
+              content = re.sub(r'["\']' + b + r'["\']\s*,\s*', '', content)
+              # Remove , "driver"
+              content = re.sub(r'\s*,\s*["\']' + b + r'["\']', '', content)
+
+          with open(path, 'w') as f:
+              f.write(content)
+          PY
 
       - name: Build Overlay Packages
         run: |
