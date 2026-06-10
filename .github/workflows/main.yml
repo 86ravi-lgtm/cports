@@ -1,0 +1,209 @@
+name: Build Chimera v4 Overlay
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * 0'
+
+concurrency:
+  group: chimera-overlay
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout cports
+        uses: actions/checkout@v4
+
+      - name: Free GitHub Actions Disk Space
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo apt-get clean
+
+      - name: Persistent Compiler Cache
+        uses: actions/cache@v4
+        with:
+          path: bldroot/ccache
+          key: chimera-ccache-${{ runner.os }}-v1
+          restore-keys: |
+            chimera-ccache-${{ runner.os }}-
+
+      - name: Install Build Dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y python3 bubblewrap bmake openssl git curl flake8 black mold
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_unconfined=0
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          curl -sSL "https://repo.chimera-linux.org/apk/latest/apk-x86_64.static" -o apk
+          echo "b11f0bf10f4c2697f3c9f7c54f84db1a6dfbb26efc33554435aa3b1cd5535043  apk" | sha256sum -c -
+          chmod +x apk
+          sudo mv apk /usr/local/bin/apk
+
+      - name: Import Signing Key
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/keys"
+          echo "${{ secrets.SIGNING_KEY }}" | base64 -d > "${RUNNER_TEMP}/keys/repo.rsa"
+          chmod 600 "${RUNNER_TEMP}/keys/repo.rsa"
+          openssl rsa -in "${RUNNER_TEMP}/keys/repo.rsa" -pubout -out "${RUNNER_TEMP}/keys/repo.rsa.pub"
+
+      - name: Configure Architecture Flags
+        run: |
+          set -euo pipefail
+          mkdir -p etc
+          cat << EOF > etc/config.ini
+          [build]
+          cflags = "-O2 -march=x86-64-v4 -pipe"
+          cxxflags = "-O2 -march=x86-64-v4 -pipe"
+          ldflags = "-fuse-ld=mold"
+
+          [signing]
+          key = ${RUNNER_TEMP}/keys/repo.rsa
+          EOF
+
+      - name: Setup Chimera cbuild
+        run: |
+          set -euo pipefail
+          export CCACHE_DIR="$PWD/bldroot/ccache"
+          export CCACHE_MAXSIZE=5G
+          export CCACHE_COMPRESS=1
+          ./cbuild bootstrap
+
+      - name: Apply Kernel Config Overlay
+        run: |
+          set -euo pipefail
+
+          # Extract exactly Major.Minor (e.g. 7.0) because CachyOS branches do not use 7.0.10
+          KVER=$(sed -n 's/^pkgver *= *"\([0-9]\+\.[0-9]\+\).*/\1/p' main/linux-stable/template.py)
+          if [[ -z "${KVER}" ]]; then
+            echo "ERROR: could not read pkgver from main/linux-stable/template.py"
+            exit 1
+          fi
+          echo "Kernel base version detected: ${KVER}"
+
+          # Fetch BORE patch for this kernel version at build time
+          mkdir -p main/linux-stable/patches
+          if curl -fsSL "https://raw.githubusercontent.com/CachyOS/kernel-patches/master/${KVER}/sched/0001-bore.patch" \
+               -o main/linux-stable/patches/0001-bore.patch; then
+            echo "Downloaded BORE patch for ${KVER}"
+          else
+            echo "WARNING: No BORE patch available for ${KVER}"
+            echo "Building kernel without BORE scheduler."
+            rm -f main/linux-stable/patches/0001-bore.patch
+          fi
+
+          # Patch cbuild's patch engine for fuzzy (-F 3) patching
+          python3 << 'PY'
+import sys
+import re
+
+path = "src/cbuild/util/patch.py"
+with open(path) as f:
+    content = f.read()
+
+if "import subprocess" not in content.split('\n')[0]:
+    content = "import subprocess\n" + content
+
+pattern = r'git\.call\(\s*\[\s*\*srcmd\s*,\s*p\s*\]\s*,\s*cwd\s*=\s*pkg\.srcdir\s*,\s*foreground\s*=\s*True\s*\)'
+replacement = 'subprocess.run(["patch", "-p1", "-F", "3", "-i", str(p)], cwd=pkg.srcdir, check=True)'
+
+if re.search(pattern, content):
+    content = re.sub(pattern, replacement, content)
+    with open(path, 'w') as f:
+        f.write(content)
+    print("Patched patch.py successfully")
+else:
+    if 'subprocess.run(["patch"' in content:
+        print("patch.py already patched")
+    else:
+        print("ERROR: Could not find git.call pattern to patch")
+        sys.exit(1)
+PY
+
+          cat << 'EOF' > main/linux-stable/files/custom-overlay.config
+          CONFIG_SCHED_BORE=y
+          CONFIG_HZ_1000=y
+          # CONFIG_HZ_300 is not set
+          # CONFIG_HZ_250 is not set
+          CONFIG_LTO_CLANG_THIN=y
+          CONFIG_PREEMPT_DYNAMIC=y
+          EOF
+
+          if [[ ! -f "main/linux-stable/patches/0001-bore.patch" ]]; then
+            sed -i 's/^CONFIG_SCHED_BORE=y/# CONFIG_SCHED_BORE is not set/' main/linux-stable/files/custom-overlay.config
+          fi
+
+          grep -q CONFIG_PREEMPT_DYNAMIC main/linux-stable/files/config-x86_64.generic || \
+            cat main/linux-stable/files/custom-overlay.config >> main/linux-stable/files/config-x86_64.generic
+
+      - name: Build Overlay Packages
+        run: |
+          set -euo pipefail
+          for pkg in \
+            main/openssl3 \
+            main/zstd \
+            main/mesa \
+            main/ffmpeg \
+            main/linux-stable
+          do
+            echo "::group::Building ${pkg}"
+            ./cbuild pkg "${pkg}"
+            echo "::endgroup::"
+          done
+
+      - name: Upload Build Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chimera-overlay-packages
+          path: packages/
+          if-no-files-found: warn
+
+      - name: Generate APKINDEX
+        run: |
+          set -euo pipefail
+          APK_FILES=$(find packages -name '*.apk')
+          if [ -n "$APK_FILES" ]; then
+            # Chimera apk automatically signs the index if passing an existing key in config!
+            apk index -o packages/APKINDEX.tar.gz $APK_FILES
+            echo "APKINDEX generated"
+          else
+            echo "No packages to index"
+          fi
+
+      - name: Checkout Hosting Repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/chimera-v4-repo
+          token: ${{ secrets.REPO_PAT }}
+          path: chimera-v4-repo
+
+      - name: Deploy Overlay
+        run: |
+          set -euo pipefail
+          if compgen -G "packages/*" > /dev/null; then
+            echo "Packages found, deploying..."
+          else
+            echo "No packages produced."
+            exit 0
+          fi
+          cd chimera-v4-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git branch -D gh-pages 2>/dev/null || true
+          git checkout --orphan gh-pages
+          git rm -rf . 2>/dev/null || true
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -r ../packages/* .
+          git add .
+          git diff --cached --quiet || \
+            git commit -m "Overlay Build: Kernel (BORE/ThinLTO), Mesa, FFmpeg, Zstd, OpenSSL (x86-64-v4)"
+          git push -f origin gh-pages
