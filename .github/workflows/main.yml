@@ -65,6 +65,7 @@ jobs:
           cxxflags = "-O2 -march=x86-64-v4 -pipe"
           ldflags = "-fuse-ld=mold"
           jobs = 1
+          ccache = true
 
           [signing]
           key = ${RUNNER_TEMP}/keys/repo.rsa
