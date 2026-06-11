@@ -28,6 +28,7 @@ jobs:
           sudo apt-get clean
           
           # Setup 4GB swap space to protect against Out-Of-Memory (OOM) crashes
+          sudo swapoff -a || true
           sudo fallocate -l 4G /swapfile
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
