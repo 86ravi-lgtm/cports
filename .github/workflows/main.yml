@@ -26,6 +26,13 @@ jobs:
           set -euo pipefail
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo apt-get clean
+          
+          # Setup 4GB swap space to protect against Out-Of-Memory (OOM) crashes
+          sudo fallocate -l 4G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
 
       - name: Persistent Compiler Cache Restore
         uses: actions/cache/restore@v4
@@ -64,7 +71,7 @@ jobs:
           cflags = "-O2 -march=x86-64-v4 -pipe"
           cxxflags = "-O2 -march=x86-64-v4 -pipe"
           ldflags = "-fuse-ld=mold"
-          jobs = 1
+          jobs = 2
           ccache = yes
           check = no
 
