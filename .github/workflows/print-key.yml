@@ -1,0 +1,22 @@
+name: Print Public Key
+
+on:
+  workflow_dispatch:
+
+jobs:
+  print:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract Public Key
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: |
+          if [ -z "$SIGNING_KEY" ]; then
+            echo "ERROR: SIGNING_KEY secret is empty or not found!"
+            exit 1
+          fi
+          echo "$SIGNING_KEY" | base64 -d > repo.rsa 2>/dev/null || echo "$SIGNING_KEY" > repo.rsa
+          openssl rsa -in repo.rsa -pubout -out repo.rsa.pub
+          echo "=== PUBLIC KEY START ==="
+          cat repo.rsa.pub
+          echo "=== PUBLIC KEY END ==="
