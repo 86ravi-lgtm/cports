@@ -27,9 +27,9 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo apt-get clean
           
-          # Setup 4GB swap space to protect against Out-Of-Memory (OOM) crashes
+          # Setup 8GB swap space to protect against Out-Of-Memory (OOM) crashes
           sudo swapoff -a || true
-          sudo fallocate -l 4G /swapfile
+          sudo fallocate -l 8G /swapfile
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
@@ -39,7 +39,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: cbuild_cache/ccache
-          key: chimera-ccache-${{ runner.os }}-v2
+          key: chimera-ccache-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             chimera-ccache-${{ runner.os }}-
 
@@ -47,7 +47,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y python3 bubblewrap bmake openssl git curl flake8 black mold
+          sudo apt-get install -y python3 bubblewrap bmake openssl git curl flake8 black
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_unconfined=0
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           curl -sSL "https://repo.chimera-linux.org/apk/latest/apk-x86_64.static" -o apk
@@ -71,7 +71,7 @@ jobs:
           [build]
           cflags = "-O2 -march=x86-64-v4 -pipe"
           cxxflags = "-O2 -march=x86-64-v4 -pipe"
-          ldflags = "-fuse-ld=mold"
+          ldflags = "-fuse-ld=lld"
           jobs = 2
           ccache = yes
           check = no
@@ -90,7 +90,7 @@ jobs:
           set -euo pipefail
 
           # Extract exactly Major.Minor (e.g. 7.0) because CachyOS branches do not use 7.0.10
-          KVER=$(sed -n 's/^pkgver *= *"\([0-9]\+\.[0-9]\+\).*/\1/p' main/linux-stable/template.py)
+          KVER=$(sed -E -n "s/^pkgver *= *['\"]([0-9]+)\.([0-9]+).*/\1.\2/p" main/linux-stable/template.py)
           if [[ -z "${KVER}" ]]; then
             echo "ERROR: could not read pkgver from main/linux-stable/template.py"
             exit 1
@@ -99,41 +99,52 @@ jobs:
 
           # Fetch BORE patch for this kernel version at build time
           mkdir -p main/linux-stable/patches
-          if curl -fsSL "https://raw.githubusercontent.com/CachyOS/kernel-patches/master/${KVER}/sched/0001-bore.patch" \
-               -o main/linux-stable/patches/0001-bore.patch; then
+          TEMP_PATCH=$(mktemp)
+          if curl -fsSL "https://raw.githubusercontent.com/CachyOS/kernel-patches/master/${KVER}/sched/0001-bore.patch" -o "$TEMP_PATCH"; then
+            mv "$TEMP_PATCH" main/linux-stable/patches/0001-bore.patch
             echo "Downloaded BORE patch for ${KVER}"
           else
             echo "WARNING: No BORE patch available for ${KVER}"
             echo "Building kernel without BORE scheduler."
-            rm -f main/linux-stable/patches/0001-bore.patch
+            rm -f "$TEMP_PATCH"
           fi
 
           # Patch cbuild's patch engine for fuzzy (-F 3) patching
           python3 << 'PY'
           import sys
-          import re
+          import subprocess
           
           path = "src/cbuild/util/patch.py"
           with open(path) as f:
               content = f.read()
           
-          if "import subprocess" not in content.split('\n')[0]:
+          if "import subprocess" not in content:
               content = "import subprocess\n" + content
           
-          pattern = r'git\.call\(\s*\[\s*\*srcmd\s*,\s*p\s*\]\s*,\s*cwd\s*=\s*pkg\.srcdir\s*,\s*foreground\s*=\s*True\s*\)'
-          replacement = 'subprocess.run(["patch", "-p1", "-F", "3", "-i", str(p)], cwd=pkg.srcdir, check=True)'
+          target = "\n".join([
+              "    def _apply(p):",
+              '        if not git.call([*srcmd, p], cwd=pkg.srcdir, foreground=True):',
+              '            pkg.error(f"failed to apply \'{p.name}\'")'
+          ])
           
-          if re.search(pattern, content):
-              content = re.sub(pattern, replacement, content)
+          replacement = "\n".join([
+              "    def _apply(p):",
+              "        try:",
+              '            subprocess.run(["patch", "-p1", "-F", "3", "-i", str(p)], cwd=pkg.srcdir, check=True)',
+              "        except Exception:",
+              '            pkg.error(f"failed to apply \'{p.name}\'")'
+          ])
+          
+          if target in content:
+              content = content.replace(target, replacement)
               with open(path, 'w') as f:
                   f.write(content)
               print("Patched patch.py successfully")
+          elif replacement in content:
+              print("patch.py already patched")
           else:
-              if 'subprocess.run(["patch"' in content:
-                  print("patch.py already patched")
-              else:
-                  print("ERROR: Could not find git.call pattern to patch")
-                  sys.exit(1)
+              print("ERROR: Could not find _apply block to replace")
+              sys.exit(1)
           PY
 
           cat << 'EOF' > main/linux-stable/files/custom-overlay.config
@@ -162,17 +173,25 @@ jobs:
         run: |
           set -euo pipefail
           python3 << 'PY'
+          import re
+
           path = "main/mesa/template.py"
           with open(path) as f:
               content = f.read()
 
-          content = content.replace("_have_nvidia = True", "_have_nvidia = False")
-          content = content.replace("_have_amd = True", "_have_amd = False")
-          content = content.replace("_have_vmware = True", "_have_vmware = False")
-          content = content.replace("_have_virgl = True", "_have_virgl = False")
-          content = content.replace("_have_opencl = _have_amd or _have_intel", "_have_opencl = False")
-          content = content.replace("_have_hwdec = True", "_have_hwdec = False")
-          content = content.replace('"usr/share/drirc.d/00-radv-defaults.conf",', '*([ "usr/share/drirc.d/00-radv-defaults.conf" ] if _have_amd else []),')
+          # Replace boolean flags robustly
+          for flag in ["_have_nvidia", "_have_amd", "_have_vmware", "_have_virgl", "_have_hwdec"]:
+              content = re.sub(rf'({flag}\s*=\s*)True', r'\1False', content)
+
+          # Replace _have_opencl expression
+          content = re.sub(r'(_have_opencl\s*=\s*)[^\n]+', r'\1False', content)
+
+          # Handle the radv defaults conf file conditionally
+          content = re.sub(
+              r'("usr/share/drirc\.d/00-radv-defaults\.conf")\s*,',
+              r'*([\1] if _have_amd else []),',
+              content
+          )
 
           # Add missing compiler requirements for intel_clc
           content += "\nmakedepends += [\"libclc\", \"spirv-llvm-translator-devel\", \"spirv-tools-devel\"]\n"
@@ -187,24 +206,27 @@ jobs:
       - name: Build Overlay Packages
         run: |
           set -euo pipefail
-          for pkg in \
-            main/openssl3 \
-            main/zstd \
-            main/mesa \
-            main/ffmpeg \
-            main/linux-stable
-          do
-            echo "::group::Building ${pkg}"
-            ./cbuild pkg "${pkg}"
-            echo "::endgroup::"
-          done
+          # Limit build step to 320m to allow cache save before 360m runner timeout
+          timeout 320m bash -c '
+            for pkg in \
+              main/openssl3 \
+              main/zstd \
+              main/mesa \
+              main/ffmpeg \
+              main/linux-stable
+            do
+              echo "::group::Building ${pkg}"
+              ./cbuild pkg "${pkg}"
+              echo "::endgroup::"
+            done
+          '
 
       - name: Persistent Compiler Cache Save
         if: always()
         uses: actions/cache/save@v4
         with:
           path: cbuild_cache/ccache
-          key: chimera-ccache-${{ runner.os }}-v2
+          key: chimera-ccache-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Upload Build Artifacts
         if: always()
@@ -214,31 +236,30 @@ jobs:
           path: packages/
           if-no-files-found: warn
 
-      - name: Checkout Hosting Repository
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ github.repository_owner }}/chimera-v4-repo
-          token: ${{ secrets.REPO_PAT }}
-          path: chimera-v4-repo
-
       - name: Deploy Overlay
         run: |
           set -euo pipefail
-          if find packages -name '*.apk' -print -quit | grep -q .; then
+          if [ -d packages ] && find packages -name '*.apk' | head -n 1 | grep -q .; then
             echo "Packages found, deploying..."
           else
             echo "No packages produced."
             exit 0
           fi
-          cd chimera-v4-repo
+
+          # Initialize a clean repository and force-push directly
+          mkdir -p deploy-repo
+          cd deploy-repo
+          git init
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git branch -D gh-pages 2>/dev/null || true
-          git checkout --orphan gh-pages
-          git rm -rf . 2>/dev/null || true
-          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          
+          # Copy packages and the public key
           cp -r ../packages/* .
+          cp "${RUNNER_TEMP}/keys/repo.rsa.pub" .
+          
+          # Add, commit and force-push directly to the gh-pages branch
+          git checkout -b gh-pages
           git add .
-          git diff --cached --quiet || \
-            git commit -m "Overlay Build: Kernel (BORE/ThinLTO), Mesa, FFmpeg, Zstd, OpenSSL (x86-64-v4)"
+          git commit -m "Overlay Build: Kernel (BORE/ThinLTO), Mesa, FFmpeg, Zstd, OpenSSL (x86-64-v4)"
+          git remote add origin "https://x-access-token:${{ secrets.REPO_PAT }}@github.com/${{ github.repository_owner }}/chimera-v4-repo.git"
           git push -f origin gh-pages
