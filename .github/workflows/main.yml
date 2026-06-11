@@ -145,8 +145,10 @@ jobs:
             sed -i 's/^CONFIG_SCHED_BORE=y/# CONFIG_SCHED_BORE is not set/' main/linux-stable/files/custom-overlay.config
           fi
 
-          grep -q CONFIG_PREEMPT_DYNAMIC main/linux-stable/files/config-x86_64.generic || \
-            cat main/linux-stable/files/custom-overlay.config >> main/linux-stable/files/config-x86_64.generic
+          sed -i '/CONFIG_DRM_AMDGPU/d' main/linux-stable/files/config-x86_64.generic
+          sed -i '/CONFIG_DRM_RADEON/d' main/linux-stable/files/config-x86_64.generic
+          sed -i '/CONFIG_DRM_NOUVEAU/d' main/linux-stable/files/config-x86_64.generic
+          cat main/linux-stable/files/custom-overlay.config >> main/linux-stable/files/config-x86_64.generic
 
       - name: Strip AMD and Nvidia from Mesa
         run: |
