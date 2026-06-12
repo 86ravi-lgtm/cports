@@ -246,12 +246,16 @@ jobs:
             exit 0
           fi
 
+          # Delete large debug symbol packages to prevent pushing gigabytes to GitHub Pages
+          find packages -name '*-dbg-*.apk' -delete
+
           # Initialize a clean repository and force-push directly
           mkdir -p deploy-repo
           cd deploy-repo
           git init
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global http.postBuffer 524288000
           
           # Copy packages and the public key
           cp -r ../packages/* .
