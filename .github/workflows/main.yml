@@ -254,8 +254,8 @@ jobs:
       - name: Build Overlay Packages
         run: |
           set -euo pipefail
-          # Limit build step to 320m to allow cache save before 360m runner timeout
-          timeout 320m bash -c '
+          # Limit build step to 350m to allow cache save before 360m runner timeout
+          timeout 350m bash -c '
             for pkg in \
               main/openssl3 \
               main/zstd \
