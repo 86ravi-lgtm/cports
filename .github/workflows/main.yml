@@ -75,6 +75,7 @@ jobs:
           jobs = 2
           ccache = yes
           check = no
+          build_dbg = no
 
           [signing]
           key = ${RUNNER_TEMP}/keys/repo.rsa
@@ -158,15 +159,41 @@ jobs:
           # CONFIG_DRM_AMDGPU is not set
           # CONFIG_DRM_RADEON is not set
           # CONFIG_DRM_NOUVEAU is not set
+          # Disable kernel debug symbols to reduce compile time and package size
+          # CONFIG_DEBUG_INFO is not set
+          CONFIG_DEBUG_INFO_NONE=y
+          # CONFIG_DEBUG_INFO_BTF is not set
+          # CONFIG_DEBUG_INFO_BTF_MODULES is not set
+          # Strip large groups of unnecessary/unused modules
+          # CONFIG_HYPERV is not set
+          # CONFIG_HAMRADIO is not set
+          # CONFIG_INFINIBAND is not set
+          # CONFIG_STAGING is not set
+          # CONFIG_SCSI_LOWLEVEL is not set
           EOF
 
           if [[ ! -f "main/linux-stable/patches/0001-bore.patch" ]]; then
             sed -i 's/^CONFIG_SCHED_BORE=y/# CONFIG_SCHED_BORE is not set/' main/linux-stable/files/custom-overlay.config
           fi
 
-          sed -i '/CONFIG_DRM_AMDGPU/d' main/linux-stable/files/config-x86_64.generic
-          sed -i '/CONFIG_DRM_RADEON/d' main/linux-stable/files/config-x86_64.generic
-          sed -i '/CONFIG_DRM_NOUVEAU/d' main/linux-stable/files/config-x86_64.generic
+          # Clean up conflicting options from base generic config
+          for opt in \
+            CONFIG_DRM_AMDGPU \
+            CONFIG_DRM_RADEON \
+            CONFIG_DRM_NOUVEAU \
+            CONFIG_DEBUG_INFO \
+            CONFIG_DEBUG_INFO_NONE \
+            CONFIG_DEBUG_INFO_BTF \
+            CONFIG_DEBUG_INFO_BTF_MODULES \
+            CONFIG_HYPERV \
+            CONFIG_HAMRADIO \
+            CONFIG_INFINIBAND \
+            CONFIG_STAGING \
+            CONFIG_SCSI_LOWLEVEL
+          do
+            sed -i "/${opt}/d" main/linux-stable/files/config-x86_64.generic
+          done
+
           cat main/linux-stable/files/custom-overlay.config >> main/linux-stable/files/config-x86_64.generic
 
       - name: Strip AMD and Nvidia from Mesa
