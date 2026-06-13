@@ -181,6 +181,29 @@ jobs:
           # CONFIG_WLAN_VENDOR_ZYDAS is not set
           # CONFIG_WLAN_VENDOR_QUANTENNA is not set
           # CONFIG_WLAN_VENDOR_MICROCHIP is not set
+          # Disable AMD platforms and subsystems
+          # CONFIG_MICROCODE_AMD is not set
+          # CONFIG_CPU_SUP_AMD is not set
+          # CONFIG_AMD_IOMMU is not set
+          # CONFIG_X86_AMD_PLATFORM_DEVICE is not set
+          # CONFIG_SND_SOC_AMD is not set
+          # CONFIG_SND_AMD_ACP_COMMON is not set
+          # CONFIG_NET_VENDOR_AMD is not set
+          # Disable non-Intel Ethernet vendors
+          # CONFIG_NET_VENDOR_BROADCOM is not set
+          # CONFIG_NET_VENDOR_MARVELL is not set
+          # CONFIG_NET_VENDOR_MELLANOX is not set
+          # CONFIG_NET_VENDOR_REALTEK is not set
+          # CONFIG_NET_VENDOR_NVIDIA is not set
+          # Disable virtual GPU drivers to save space
+          # CONFIG_DRM_QXL is not set
+          # CONFIG_DRM_VBOXVIDEO is not set
+          # CONFIG_DRM_VMWGFX is not set
+          # CONFIG_DRM_VIRTIO_GPU is not set
+          # Disable legacy graphics drivers
+          # CONFIG_DRM_GMA500 is not set
+          # CONFIG_DRM_MGAG200 is not set
+          # CONFIG_DRM_AST is not set
           EOF
 
           if [[ ! -f "main/linux-stable/patches/0001-bore.patch" ]]; then
@@ -210,7 +233,26 @@ jobs:
             CONFIG_WLAN_VENDOR_MARVELL \
             CONFIG_WLAN_VENDOR_ZYDAS \
             CONFIG_WLAN_VENDOR_QUANTENNA \
-            CONFIG_WLAN_VENDOR_MICROCHIP
+            CONFIG_WLAN_VENDOR_MICROCHIP \
+            CONFIG_MICROCODE_AMD \
+            CONFIG_CPU_SUP_AMD \
+            CONFIG_AMD_IOMMU \
+            CONFIG_X86_AMD_PLATFORM_DEVICE \
+            CONFIG_SND_SOC_AMD \
+            CONFIG_SND_AMD_ACP_COMMON \
+            CONFIG_NET_VENDOR_AMD \
+            CONFIG_NET_VENDOR_BROADCOM \
+            CONFIG_NET_VENDOR_MARVELL \
+            CONFIG_NET_VENDOR_MELLANOX \
+            CONFIG_NET_VENDOR_REALTEK \
+            CONFIG_NET_VENDOR_NVIDIA \
+            CONFIG_DRM_QXL \
+            CONFIG_DRM_VBOXVIDEO \
+            CONFIG_DRM_VMWGFX \
+            CONFIG_DRM_VIRTIO_GPU \
+            CONFIG_DRM_GMA500 \
+            CONFIG_DRM_MGAG200 \
+            CONFIG_DRM_AST
           do
             sed -i "/${opt}/d" main/linux-stable/files/config-x86_64.generic
           done
@@ -254,8 +296,8 @@ jobs:
       - name: Build Overlay Packages
         run: |
           set -euo pipefail
-          # Limit build step to 350m to allow cache save before 360m runner timeout
-          timeout 350m bash -c '
+          # Limit build step to 320m to allow cache save before 360m runner timeout
+          timeout 320m bash -c '
             for pkg in \
               main/openssl3 \
               main/zstd \
