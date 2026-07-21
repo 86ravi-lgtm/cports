@@ -11,8 +11,7 @@ make_check_args = [
     "(tst_qscreencapturebackend"  # blacklisted on upstream CI, https://bugreports.qt.io/browse/QTBUG-111190
     "|tst_qwindowcapturebackend)",  # cannot find any windows, "hangs" for 9 mins
 ]
-# tst_q{mediaplayerbackend,videoframecolormanagement} only work under xvfb
-make_check_wrapper = ["xvfb-run"]
+make_check_wrapper = ["wlheadless-run", "--"]
 hostmakedepends = [
     "cmake",
     "ninja",
@@ -31,7 +30,7 @@ makedepends = [
 ]
 checkdepends = [
     "gst-plugins-good",
-    "xserver-xorg-xvfb",
+    "xwayland-run",
 ]
 depends = [
     # dlopen
@@ -68,7 +67,7 @@ def init_check(self):
 
 def post_install(self):
     # disabled above, so no uninstall
-    self.rm(">usr/tests", recursive=True, force=True)
+    self.rm(self.destdir / "usr/tests", recursive=True, force=True)
 
 
 @subpackage("qt6-qtmultimedia-devel")

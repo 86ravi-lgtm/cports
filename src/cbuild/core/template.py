@@ -111,15 +111,7 @@ def _pglob_path(oldp, patp):
 
 
 def _subst_path(pkg, pathn):
-    if isinstance(pathn, str):
-        if pathn.startswith(">/"):
-            return pkg.destdir / pathn.removeprefix(">/")
-        elif pathn.startswith("^/"):
-            return pkg.files_path / pathn.removeprefix("^/")
-        else:
-            return pathlib.Path(pathn)
-    else:
-        return pathlib.Path(pathn)
+    return pathlib.Path(pathn)
 
 
 class Package:
@@ -349,6 +341,7 @@ default_options = {
     "lintcomp": (True, False),
     "lintstatic": (True, False),
     "lintpixmaps": (True, False),
+    "etcfiles": (False, False),
     "distlicense": (True, False),
     "empty": (False, False),
     # actually true by default for -devel
@@ -380,6 +373,7 @@ default_options = {
     "ltostrip": (False, False),
     "linkparallel": (True, True),
     "linkundefver": (False, False),
+    "linkrelax": (True, False),
     "framepointer": (True, True),
     "fullrustflags": (False, True),
     "sanruntime": (False, True),
@@ -1964,6 +1958,8 @@ class Template(Package):
         lld_args = compiler._get_lld_cpuargs(self.link_threads)
         if self.options["linkundefver"]:
             lld_args += ["--undefined-version"]
+        if not self.options["linkrelax"]:
+            lld_args += ["--no-relax"]
         if self.use_ltocache:
             lld_args += [
                 f"--thinlto-cache-policy=cache_size_bytes={self.use_ltocache}",

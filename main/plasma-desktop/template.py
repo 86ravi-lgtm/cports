@@ -1,6 +1,6 @@
 pkgname = "plasma-desktop"
-pkgver = "6.7.0"
-pkgrel = 0
+pkgver = "6.7.3"
+pkgrel = 1
 build_style = "cmake"
 # FIXME: missing layout memory xml file? QTemporaryFile broken?
 # tst_calibrationtool: broken on ppc64le
@@ -60,7 +60,6 @@ makedepends = [
     "wayland-protocols",
     "xcb-util-devel",
     "xserver-xorg-devel",
-    "xserver-xorg-input-evdev-devel",
     "xserver-xorg-input-libinput-devel",
     # TODO: PackageKitQt6? (Software Manager integration, KRunner plugin installer)
 ]
@@ -104,12 +103,20 @@ depends = [
     "xdg-user-dirs-gtk",
     "xdg-utils",
 ]
+# TODO: maybe we could split it? maybe with meta reorg
+provides = [
+    self.with_pkgver("sddm-theme-default"),
+    # transitional
+    self.with_pkgver("sddm-default-breeze"),
+]
+replaces = ["sddm<0.21.0-r7"]
 pkgdesc = "KDE Plasma Desktop"
 license = "GPL-2.0-only AND LGPL-2.1-only"
 url = "https://kde.org/plasma-desktop"
 source = f"$(KDE_SITE)/plasma/{pkgver}/plasma-desktop-{pkgver}.tar.xz"
-sha256 = "63513b54f6f60b3cd7ec35ca2f0962bdf25669729388e8515ac1d3b8899ee47f"
+sha256 = "8c1bb725b42375e8ce217fb0432cad30fcca0cb315d864b318b76b38b5f074c6"
 hardening = ["vis"]
+options = ["etcfiles"]
 
 # most kdepim stuff depends on messagelib which depends on qtwebengine
 _have_kdepim = False
@@ -118,6 +125,11 @@ if self.profile().arch in ["aarch64", "ppc64le", "x86_64"]:
 
 
 def post_install(self):
+    # install default breeze theme selection for sddm, it looks way better
+    self.install_file(
+        self.files_path / "10-breeze-theme.conf",
+        "usr/lib/sddm/sddm.conf.d",
+    )
     self.uninstall("usr/lib/systemd/user/plasma-kaccess.service")
 
 
@@ -182,7 +194,6 @@ def _(self):
         "plasma-workspace-x11",  # xsession
         "setxkbmap",  # configure non-us layout
         "wacomtablet",  # wacom tablet settings
-        # "xserver-xorg-input-evdev",  # TODO: used by mouse KCM? page loads even without it at least
         "xserver-xorg-input-libinput",  # general input
     ]
     self.install_if = [self.parent, "xserver-xorg-core"]
@@ -225,6 +236,7 @@ def _(self):
         "ksystemlog",  # log viewer (TODO: does it ask for root itself?)
         "ktorrent",  # torrent client
         "ktrip",  # trip planner
+        "neochat",  # matrix client
         "okular",  # document viewer
         "partitionmanager",  # partition manager
         "plasma-systemmonitor",
@@ -234,13 +246,11 @@ def _(self):
         "spectacle",  # screenshot
         "sweeper",  # cache cleaner
         "yakuake",  # drop-down terminal
-        # "neochat",  # local WIP, matrix client
         # - still qt5
         # "kamoso",  # camera
         # "kipi-plugins",  # image export
         # "kmymoney",  # finance manager
         # "kompare",  # gui diff
-        # "krita",  # digital art studio
     ]
     # things missing on some arches
     if self.rparent.profile().arch in ["aarch64", "ppc64le", "x86_64"]:
@@ -249,6 +259,7 @@ def _(self):
             "digikam",  # photo manager
             "ghostwriter",  # markdown editor
             "khelpcenter",  # documentation viewer
+            "krita",  # digital art studio
             "konqueror",  # web browser
             "tokodon",  # mastodon client
         ]
@@ -266,7 +277,7 @@ def _(self):
         "audiotube",  # youtube music client
         "elisa",  # music player
         "ffmpegthumbs",  # video thumbnails
-        # "k3b",  # disc ripper TODO: bunch of dvd/cd tools
+        "k3b",  # disc ripper
         "kasts",  # podcast player
         "kdenlive",  # video editor
         "juk",  # music player and manager

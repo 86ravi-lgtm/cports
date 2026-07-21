@@ -1,6 +1,6 @@
 pkgname = "dhcpcd"
 pkgver = "10.3.2"
-pkgrel = 0
+pkgrel = 1
 build_style = "configure"
 configure_args = [
     "--prefix=/usr",
@@ -23,10 +23,11 @@ source = f"https://github.com/NetworkConfiguration/dhcpcd/releases/download/v{pk
 sha256 = "b6aa46932074906a9badef1bfe142b8aff9d041c2689e1ef8b74c12e9fd942bd"
 # FIXME vis for usr/lib/dhcpcd/dev/udev.so
 hardening = ["!vis", "!cfi"]
+options = ["etcfiles"]
 
 
 def post_install(self):
     self.install_license("LICENSE")
-    self.install_sysusers("^/sysusers.conf")
-    self.install_tmpfiles("^/tmpfiles.conf")
-    self.install_service("^/dhcpcd")
+    self.install_sysusers(self.files_path / "sysusers.conf")
+    self.install_tmpfiles(self.files_path / "tmpfiles.conf")
+    self.install_service(self.files_path / "dhcpcd")

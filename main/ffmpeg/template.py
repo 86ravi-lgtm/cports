@@ -1,6 +1,6 @@
 pkgname = "ffmpeg"
-pkgver = "8.1.1"
-pkgrel = 0
+pkgver = "8.1.2"
+pkgrel = 1
 build_style = "configure"
 configure_args = [
     "--prefix=/usr",
@@ -142,10 +142,13 @@ pkgdesc = "Decoding, encoding and streaming software"
 license = "GPL-3.0-or-later"
 url = "https://ffmpeg.org"
 source = f"{url}/releases/ffmpeg-{pkgver}.tar.xz"
-sha256 = "b6863adde98898f42602017462871b5f6333e65aec803fdd7a6308639c52edf3"
+sha256 = "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c"
 # some conf checks like for some pthread functions don't detect interfaces
 # without it
-tool_flags = {"CFLAGS": ["-D_GNU_SOURCE"]}
+tool_flags = {
+    "CFLAGS": ["-D_GNU_SOURCE"],
+    "LDFLAGS": ["-Wl,-z,stack-size=0x200000"],
+}
 # seems to need rpath?
 options = ["!check"]
 

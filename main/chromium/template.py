@@ -1,6 +1,6 @@
 pkgname = "chromium"
 # https://chromiumdash.appspot.com/releases?platform=Linux
-pkgver = "149.0.7827.155"
+pkgver = "150.0.7871.128"
 pkgrel = 0
 archs = ["aarch64", "ppc64le", "x86_64"]
 configure_args = [
@@ -145,7 +145,7 @@ source = [
 ]
 source_paths = [".", "rollup"]
 sha256 = [
-    "c06d5e416b38c492648092f0a001238f75df648a14482143a6296452aec4d653",
+    "89b8e3851d9c409f9ff65cfbae1962f2cb323d70bd8e809910fe269d84b2f227",
     "ee49bf67bd9bee869405af78162d028e2af0fcfca80497404f56b1b99f272717",
 ]
 debug_level = 1
@@ -170,7 +170,7 @@ file_modes = {
 }
 hardening = ["!scp"]
 # lol
-options = ["!cross", "!check", "!scanshlibs"]
+options = ["etcfiles", "!cross", "!check", "!scanshlibs"]
 
 match self.profile().arch:
     case "ppc64le" | "riscv64":

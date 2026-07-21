@@ -1,8 +1,9 @@
 pkgname = "firefox"
-pkgver = "152.0"
+pkgver = "152.0.6"
 pkgrel = 0
 hostmakedepends = [
     "automake",
+    "cage",
     "cargo",
     "cbindgen",
     "clang-devel",
@@ -16,7 +17,7 @@ hostmakedepends = [
     "python",
     "rust",
     "wasi-sdk",
-    "xserver-xorg-xvfb",
+    "wlr-randr",
     "zip",
 ]
 makedepends = [
@@ -63,7 +64,7 @@ pkgdesc = "Mozilla Firefox web browser"
 license = "GPL-3.0-only AND LGPL-2.1-only AND LGPL-3.0-only AND MPL-2.0"
 url = "https://www.mozilla.org/firefox"
 source = f"$(MOZILLA_SITE)/firefox/releases/{pkgver}/source/firefox-{pkgver}.source.tar.xz"
-sha256 = "5e5f9acb550d065a43934e0fcd11ed3ec22f7266fc9ad63df757406b432a5127"
+sha256 = "ea220c4f8d19d4edaa20e6dadfd3c4aeb07dbed017ade2828fd814d660660f0e"
 debug_level = 1  # defatten, especially with LTO
 tool_flags = {
     "LDFLAGS": ["-Wl,-rpath=/usr/lib/firefox", "-Wl,-z,stack-size=2097152"]
@@ -96,7 +97,9 @@ elif self.profile().arch == "ppc64le":
 
 
 def post_extract(self):
-    self.cp("^/stab.h", "toolkit/crashreporter/google-breakpad/src")
+    self.cp(
+        self.files_path / "stab.h", "toolkit/crashreporter/google-breakpad/src"
+    )
 
 
 def post_patch(self):
@@ -213,12 +216,10 @@ def configure(self):
             self.do(
                 "dbus-run-session",
                 "--",
-                "xvfb-run",
-                "-s",
-                "-screen 0 1920x1080x24",
-                "./mach",
-                "python",
-                "./build/pgo/profileserver.py",
+                "cage",
+                "sh",
+                "-c",
+                "wlr-randr --output HEADLESS-1 --custom-mode 1920x1080@60; ./mach python ./build/pgo/profileserver.py",
                 env={
                     "HOME": str(self.chroot_cwd),
                     "JARLOG_FILE": str(self.chroot_cwd / "jarlog"),
@@ -226,6 +227,7 @@ def configure(self):
                     "LIBGL_ALWAYS_SOFTWARE": "1",
                     "LLVM_PROFDATA": "llvm-profdata",
                     "XDG_RUNTIME_DIR": "/tmp",
+                    "WLR_BACKENDS": "headless",
                 },
             )
         # clean up build dir
@@ -256,10 +258,15 @@ def install(self):
     )
 
     self.install_file(
-        "^/vendor.js", "usr/lib/firefox/browser/defaults/preferences"
+        self.files_path / "vendor.js",
+        "usr/lib/firefox/browser/defaults/preferences",
     )
-    self.install_file("^/distribution.ini", "usr/lib/firefox/distribution")
-    self.install_file("^/firefox.desktop", "usr/share/applications")
+    self.install_file(
+        self.files_path / "distribution.ini", "usr/lib/firefox/distribution"
+    )
+    self.install_file(
+        self.files_path / "firefox.desktop", "usr/share/applications"
+    )
 
     # icons
     for sz in [16, 22, 24, 32, 48, 128, 256]:

@@ -1,5 +1,5 @@
 pkgname = "topgrade"
-pkgver = "17.4.0"
+pkgver = "17.8.0"
 pkgrel = 0
 build_style = "cargo"
 hostmakedepends = ["cargo-auditable"]
@@ -8,7 +8,7 @@ pkgdesc = "Multiple package-manager system updater"
 license = "GPL-3.0-or-later"
 url = "https://github.com/topgrade-rs/topgrade"
 source = f"{url}/archive/refs/tags/v{pkgver}.tar.gz"
-sha256 = "97b325d4e17b1b5699090382af2240c70629432da4677400151aae05af38cf64"
+sha256 = "e723b723db7ef3179417e3529bd67a637a3ceafed8f63ee81202cfae9200ad9b"
 # generates completions with host binary
 options = ["!cross"]
 
